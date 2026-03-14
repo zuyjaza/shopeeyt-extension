@@ -26,6 +26,7 @@ job_results: dict = {}              # Kết quả: {job_id: {"status", "youtube_
 emulator_commands: deque = deque()  # Hàng đợi lệnh cho Emulator: ["RELOAD", ...]
 job_history: deque = deque(maxlen=30) # Lịch sử hoạt động (30 dòng gần nhất)
 history_counter = 0
+last_reset_date = datetime.now().date() # Theo dõi ngày cuối cùng reset STT
 
 # --- THAY ĐỔI LINK CỦA BẠN TẠI ĐÂY ---
 ZALO_LINK = "https://zalo.me/g/dpvvjy561"
@@ -47,16 +48,29 @@ def get_is_maintenance():
         return True
     
     heartbeat_age = time.time() - last_heartbeat
-    if heartbeat_age > 60: # Quay lại 60s để ổn định với Service Worker V3
+    if heartbeat_age > 90: # 1.5 phút (90s) theo yêu cầu mới
         return True
     return False
 
-def add_to_history(msg):
-    global history_counter
-    history_counter += 1
-    now = datetime.now().strftime("[%H:%M:%S %d/%m/%Y]")
-    entry = f"{history_counter}- {now} - {msg}"
-    job_history.append(entry) # Hiện cái mới nhất ở cuối
+def add_to_history(msg, is_success=False):
+    global history_counter, last_reset_date
+    now_dt = datetime.now()
+    now_date = now_dt.date()
+    now_str = now_dt.strftime("[%H:%M:%S %d/%m/%Y]")
+    
+    # Reset STT nếu qua ngày mới (00:00)
+    if now_date > last_reset_date:
+        history_counter = 0
+        last_reset_date = now_date
+        job_history.append(f"--- BẮT ĐẦU NGÀY MỚI {now_date.strftime('%d/%m/%Y')} ---")
+
+    if is_success:
+        history_counter += 1
+        entry = f"{history_counter}- {now_str} - {msg}"
+    else:
+        # Không đánh STT cho thông báo lỗi/hệ thống
+        entry = f"&nbsp;&nbsp;&nbsp;&nbsp; {now_str} - {msg}" 
+    job_history.append(entry)
 
 
 class LinkRequest(BaseModel):
@@ -128,10 +142,12 @@ async def get_pending_link():
                 if elapsed > 45:
                     print(f"⚠️ Job {job['job_id']} bị stuck, HỦY LỆNH để tránh tắc nghẽn.")
                     if job_id in job_results:
+                        error_msg = "Có lỗi xảy ra, vui lòng gắn lại mã."
                         job_results[job_id].update({
                             "status": "error",
-                            "error": "Có lỗi xảy ra, vui lòng gắn lại mã."
+                            "error": error_msg
                         })
+                        add_to_history(f"Lỗi Hệ Thống: Job bị treo (Stuck > 45s)")
                     # Xoá khỏi queue để link tiếp theo có thể chạy
                     del job_queue[i]
                     continue # Bỏ qua job lỗi, tiếp tục vòng lặp để lấy job #2, #3 lên làm ngay lập tức
@@ -176,17 +192,18 @@ async def submit_youtube_link(res: YoutubeResponse):
     if yt_link.startswith("ERROR:"):
         error_msg = yt_link.replace("ERROR:", "").strip()
         
-        # --- TỰ ĐỘNG SỬA THÔNG BÁO LỖI THEO YÊU CẦU ---
-        if "vui lòng đổi shop khác" in error_msg.lower():
-            error_msg = "Shop bạn gửi không hỗ trợ mã, tìm sản phẩm này trên shop khác và thử lại."
-            add_to_history("Lỗi gắn mã, vui lòng đổi shop khác.")
+        # --- PHÂN LOẠI LỖI THEO YÊU CẦU ---
+        web_error_msg = "Có lỗi xảy ra, vui lòng gắn lại mã."
+        if "không hỗ trợ mã" in error_msg.lower():
+            web_error_msg = "Shop bạn gửi không hỗ trợ mã, vui lòng tìm sản phẩm này trên shop khác và thử lại."
+            add_to_history(f"Lỗi Sản Phẩm: {error_msg}")
         else:
-            add_to_history(f"Lỗi: {error_msg}")
+            add_to_history(f"Lỗi Hệ Thống: {error_msg}")
             
         job_results[job_id].update({
             "status": "error", 
             "youtube_link": None, 
-            "error": error_msg, 
+            "error": web_error_msg, # Trả về web lỗi thân thiện
             "shopee_url": job_results[job_id].get("shopee_url")
         })
     else:
@@ -197,7 +214,7 @@ async def submit_youtube_link(res: YoutubeResponse):
             "error": None
         })
         global_stats["completed_jobs"] += 1
-        add_to_history("Thành công")
+        add_to_history("Thành công", is_success=True)
 
     return {"message": "Result received"}
 
@@ -219,8 +236,10 @@ async def check_status(job_id: str):
     if result["status"] == "processing":
         picked_at = result.get("picked_at")
         if picked_at and (now - picked_at) > 40:
+            error_msg = "Có lỗi xảy ra, vui lòng gắn lại mã."
             result["status"] = "error"
-            result["error"] = "Có lỗi xảy ra, vui lòng gắn lại mã."
+            result["error"] = error_msg
+            add_to_history(f"Lỗi Hệ Thống: Hết thời gian chờ (Timeout 40s)")
             # Xoá khỏi queue nếu còn
             for i, job in enumerate(job_queue):
                 if job["job_id"] == job_id:
@@ -612,7 +631,7 @@ async def get_ui():
             btn.disabled = true;
             btn.innerHTML = '⌛ ĐANG XỬ LÝ' + dotHtml;
 
-            showStatus('⌛ Đã gửi yêu cầu, Đang chờ xử lý' + dotHtml + ' từ 10-20s', 'pending');
+            showStatus('⌛ Đã gửi yêu cầu, Đang chờ xử lý' + dotHtml + ' từ 5-10s', 'pending');
             document.getElementById('result-area').style.display = 'none';
 
             try {{
@@ -661,7 +680,7 @@ async def get_ui():
                     resetButton();
                 }} else {{
                     // Chỉ hiển thị hàng đợi, ẩn chi tiết
-                    let msg = '⏳ Đang chờ xử lý' + dotHtml + ' từ 10-20s';
+                    let msg = '⏳ Đang chờ xử lý' + dotHtml + ' từ 5-10s';
                     if (data.queue_position > 0) msg = `⏳ Bạn đang ở vị trí thứ ${{data.queue_position}} trong hàng đợi` + dotHtml;
                     showStatus(msg, 'pending');
                 }}
