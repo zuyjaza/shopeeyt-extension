@@ -7,7 +7,13 @@ import time
 from collections import deque
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+# --- CẤU HÌNH TIMEZONE VIỆT NAM (UTC+7) ---
+VN_TZ = timezone(timedelta(hours=7))
+
+def get_vn_now():
+    return datetime.now(VN_TZ)
 
 app = FastAPI(title="YouTube Shopping Extension API")
 
