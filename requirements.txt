@@ -1,0 +1,9 @@
+streamlit
+selenium
+webdriver-manager
+requests
+watchdog
+toml
+fastapi
+uvicorn
+pydantic
