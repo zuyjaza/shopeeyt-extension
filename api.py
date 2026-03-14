@@ -192,13 +192,18 @@ async def submit_youtube_link(res: YoutubeResponse):
     if job_id not in job_results:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    yt_link = res.yt_link
+
+    # --- CHẶN TRÙNG LẶP LOG (Deduplication) ---
+    # Nếu job đã xong (complete) hoặc đã lỗi (error), hoặc link trả về giống hệt link cũ -> Bỏ qua logging
+    if job_results[job_id]["status"] in ("complete", "error") or yt_link == job_results[job_id].get("youtube_link"):
+        return {"message": "Job already processed, skipping history."}
+
     # Xoá job khỏi queue
     for i, job in enumerate(job_queue):
         if job["job_id"] == job_id:
             del job_queue[i]
             break
-
-    yt_link = res.yt_link
     if yt_link.startswith("ERROR:"):
         error_msg = yt_link.replace("ERROR:", "").strip()
         
