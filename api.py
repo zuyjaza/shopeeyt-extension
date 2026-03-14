@@ -207,6 +207,9 @@ async def submit_youtube_link(res: YoutubeResponse):
         if "không hỗ trợ mã" in error_msg.lower():
             web_error_msg = "Shop bạn gửi không hỗ trợ mã, vui lòng tìm sản phẩm này trên shop khác và thử lại."
             add_to_history(f"Lỗi Sản Phẩm: {error_msg}")
+        elif "báo admin" in error_msg.lower() or "không thấy link" in error_msg.lower():
+            web_error_msg = "Lỗi hệ thống, vui lòng báo admin."
+            add_to_history(f"Lỗi Hệ Thống: {error_msg}")
         else:
             add_to_history(f"Lỗi Hệ Thống: {error_msg}")
             
