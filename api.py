@@ -32,7 +32,7 @@ job_results: dict = {}              # Kết quả: {job_id: {"status", "youtube_
 emulator_commands: deque = deque()  # Hàng đợi lệnh cho Emulator: ["RELOAD", ...]
 job_history: deque = deque(maxlen=30) # Lịch sử hoạt động (30 dòng gần nhất)
 history_counter = 0
-last_reset_date = datetime.now().date() # Theo dõi ngày cuối cùng reset STT
+last_reset_date = get_vn_now().date() # Theo dõi ngày cuối cùng reset STT
 
 # --- THAY ĐỔI LINK CỦA BẠN TẠI ĐÂY ---
 ZALO_LINK = "https://zalo.me/g/dpvvjy561"
@@ -60,23 +60,27 @@ def get_is_maintenance():
 
 def add_to_history(msg, is_success=False):
     global history_counter, last_reset_date
-    now_dt = datetime.now()
+    now_dt = get_vn_now()
     now_date = now_dt.date()
+    # Định dạng: [HH:MM:SS DD/MM/YYYY]
     now_str = now_dt.strftime("[%H:%M:%S %d/%m/%Y]")
     
-    # Reset STT nếu qua ngày mới (00:00)
+    # 1. Tự động Reset STT nếu qua ngày mới (00:00 Việt Nam)
     if now_date > last_reset_date:
         history_counter = 0
         last_reset_date = now_date
         job_history.append(f"--- BẮT ĐẦU NGÀY MỚI {now_date.strftime('%d/%m/%Y')} ---")
 
+    # 2. Phân loại hiển thị
     if is_success:
         history_counter += 1
         entry = f"{history_counter}- {now_str} - {msg}"
     else:
-        # Không đánh STT cho thông báo lỗi/hệ thống
+        # Không đánh STT cho thông báo lỗi/hệ thống, lùi lề để dễ nhìn
         entry = f"&nbsp;&nbsp;&nbsp;&nbsp; {now_str} - {msg}" 
+    
     job_history.append(entry)
+    print(f"Log: {entry}") # Debug ra console server
 
 
 class LinkRequest(BaseModel):
