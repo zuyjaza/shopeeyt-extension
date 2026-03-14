@@ -11,17 +11,6 @@ from datetime import datetime
 
 app = FastAPI(title="YouTube Shopping Extension API")
 
-def get_is_maintenance():
-    # Bảo trì tự động nếu không có bot (Extension) kết nối trong 10 giây
-    last_heartbeat = global_stats.get("last_bot_heartbeat", 0)
-    if last_heartbeat == 0: # Chưa bao giờ kết nối
-        return True
-    
-    heartbeat_age = time.time() - last_heartbeat
-    if heartbeat_age > 60: # Quay lại 60s để ổn định với Service Worker V3
-        return True
-    return False
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -50,6 +39,17 @@ global_stats = {
     "start_time": time.time(),
     "last_bot_heartbeat": 0  # Theo dõi lần cuối bot (Extension/Phone) kết nối
 }
+
+def get_is_maintenance():
+    # Bảo trì tự động nếu không có bot (Extension) kết nối trong 10 giây
+    last_heartbeat = global_stats.get("last_bot_heartbeat", 0)
+    if last_heartbeat == 0: # Chưa bao giờ kết nối
+        return True
+    
+    heartbeat_age = time.time() - last_heartbeat
+    if heartbeat_age > 60: # Quay lại 60s để ổn định với Service Worker V3
+        return True
+    return False
 
 def add_to_history(msg):
     global history_counter
