@@ -18,7 +18,7 @@ def get_is_maintenance():
         return True
     
     heartbeat_age = time.time() - last_heartbeat
-    if heartbeat_age > 60:
+    if heartbeat_age > 10:
         return True
     return False
 
@@ -321,11 +321,14 @@ async def get_stats():
     """Xem thống kê lượt nhập link."""
     uptime_sec = time.time() - global_stats["start_time"]
     uptime_min = round(uptime_sec / 60, 1)
+    last_hb = global_stats["last_bot_heartbeat"]
+    hb_age = round(time.time() - last_hb) if last_hb > 0 else "Chưa có"
     return {
         "tong_luot_nhap_link": global_stats["total_requests"],
         "so_link_thanh_cong": global_stats["completed_jobs"],
         "so_link_bi_loi": global_stats["errors"],
         "thoi_gian_server_chay_phut": uptime_min,
+        "last_heartbeat_age": hb_age,
         "ghi_chu": "Du lieu se reset khi Server Render khoi dong lai."
     }
 
@@ -567,6 +570,10 @@ async def get_ui():
 
         <div id="status-box" class="status-box status-{status_type}">{status_msg}</div>
 
+        <div id="heartbeat-debug" style="font-size: 0.75rem; color: #888; text-align: center; margin-top: 10px;">
+            Đang kiểm tra kết nối Extension...
+        </div>
+
         <div id="result-area" class="result-area">
             <div id="result-link" class="result-link"></div>
             <div class="action-btns">
@@ -703,7 +710,13 @@ async def get_ui():
                 const data = await response.json();
                 const btn = document.getElementById('convert-btn');
                 const input = document.getElementById('shopee-url');
+                const hbDebug = document.getElementById('heartbeat-debug');
                 
+                // Cập nhật thông tin Heartbeat
+                const statsRes = await fetch('/stats');
+                const stats = await statsRes.json();
+                hbDebug.innerHTML = `💓 Tín hiệu Extension: ${{stats.last_heartbeat_age}} giây trước (Yêu cầu Extension trỏ về: ${{window.location.origin}})`;
+
                 if (data.is_maintenance) {{
                     showStatus('⚠️ Đang Bảo Trì Hệ Thống. Vui lòng quay lại sau!', 'error');
                     btn.disabled = true;
@@ -718,7 +731,7 @@ async def get_ui():
                     }}
                 }}
             }} catch (err) {{}}
-        }}, 10000);
+        }}, 5000); // Tăng tần suất lên 5s để debug nhanh
     </script>
 </body>
 </html>
