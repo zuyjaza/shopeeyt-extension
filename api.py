@@ -26,7 +26,7 @@ app.add_middleware(
 )
 
 # --- Hàng đợi và kết quả theo job_id ---
-JOB_TTL = 180                       # Thời gian chờ tối đa (giây)
+JOB_TTL = 90                        # Thời gian chờ tối đa (giây)
 job_queue: deque = deque()          # Hàng đợi chờ xử lý: [{"job_id", "url", "sub_id"}]
 job_results: dict = {}              # Kết quả: {job_id: {"status", "youtube_link", "error"}}
 emulator_commands: deque = deque()  # Hàng đợi lệnh cho Emulator: ["RELOAD", ...]
@@ -147,17 +147,17 @@ async def get_pending_link():
         for i, job in enumerate(job_queue):
             job_id = job["job_id"]
             if job_results.get(job_id, {}).get("status") == "processing":
-                # Kiểm tra xem job này có bị stuck không (quá 45s - cao hơn timeout 40s của UI một chút)
+                # Kiểm tra xem job này có bị stuck không (giảm xuống 25s để thoát kẹt nhanh)
                 elapsed = now - job.get("picked_at", now)
-                if elapsed > 45:
-                    print(f"⚠️ Job {job['job_id']} bị stuck, HỦY LỆNH để tránh tắc nghẽn.")
+                if elapsed > 25:
+                    print(f"⚠️ Job {job['job_id']} bị stuck ({elapsed:.1f}s), HỦY LỆNH để tránh tắc nghẽn.")
                     if job_id in job_results:
                         error_msg = "Có lỗi xảy ra, vui lòng gắn lại mã."
                         job_results[job_id].update({
                             "status": "error",
                             "error": error_msg
                         })
-                        add_to_history(f"Lỗi Hệ Thống: Job bị treo (Stuck > 45s)")
+                        add_to_history(f"Lỗi Hệ Thống: Job bị treo (Stuck > 25s)")
                     # Xoá khỏi queue để link tiếp theo có thể chạy
                     del job_queue[i]
                     continue # Bỏ qua job lỗi, tiếp tục vòng lặp để lấy job #2, #3 lên làm ngay lập tức
@@ -250,14 +250,14 @@ async def check_status(job_id: str):
     now = time.time()
     created_at = result.get("created_at", now)
 
-    # --- KIỂM TRA TIMEOUT 40 GIÂY (Chỉ tính khi đang xử lý, không tính hàng chờ) ---
+    # --- KIỂM TRA TIMEOUT 25 GIÂY (Chỉ tính khi đang xử lý, không tính hàng chờ) ---
     if result["status"] == "processing":
         picked_at = result.get("picked_at")
-        if picked_at and (now - picked_at) > 40:
+        if picked_at and (now - picked_at) > 25:
             error_msg = "Có lỗi xảy ra, vui lòng gắn lại mã."
             result["status"] = "error"
             result["error"] = error_msg
-            add_to_history(f"Lỗi Hệ Thống: Hết thời gian chờ (Timeout 40s)")
+            add_to_history(f"Lỗi Hệ Thống: Hết thời gian chờ (Timeout 25s)")
             # Xoá khỏi queue nếu còn
             for i, job in enumerate(job_queue):
                 if job["job_id"] == job_id:
@@ -683,7 +683,7 @@ async def get_ui():
                 const data = await response.json();
 
                 if (data.status === 'processing' && processingStartTime === 0) {{
-                    processingStartTime = Date.now(); // Bắt đầu tính timeout 40s khi bot nhận link
+                    processingStartTime = Date.now(); // Bắt đầu tính timeout 25s khi bot nhận link
                 }}
 
                 if (data.status === 'complete') {{
@@ -691,9 +691,9 @@ async def get_ui():
                     showStatus('✅ GẮN MÃ THÀNH CÔNG!', 'success');
                     showResult(data.youtube_link);
                     resetButton();
-                }} else if (data.status === 'error' || (processingStartTime > 0 && (Date.now() - processingStartTime) > 40000)) {{
+                }} else if (data.status === 'error' || (processingStartTime > 0 && (Date.now() - processingStartTime) > 25000)) {{
                     clearInterval(pollInterval);
-                    const errorMsg = (processingStartTime > 0 && (Date.now() - processingStartTime) > 40000) ? 'Có lỗi xảy ra, vui lòng gắn lại mã.' : data.error;
+                    const errorMsg = (processingStartTime > 0 && (Date.now() - processingStartTime) > 25000) ? 'Có lỗi xảy ra, vui lòng gắn lại mã.' : data.error;
                     showStatus('❌ LỖI: ' + errorMsg, 'error');
                     resetButton();
                 }} else {{
