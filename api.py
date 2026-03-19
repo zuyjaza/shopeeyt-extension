@@ -559,19 +559,19 @@ async def get_ui():
             margin-bottom: 10px;
         }}
         .action-btns {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            display: block;
         }}
         .btn-action {{
-            padding: 10px;
+            display: block;
+            padding: 12px;
             border-radius: 6px;
             text-align: center;
             text-decoration: none;
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 1rem;
+            width: 100%;
+            box-sizing: border-box;
         }}
-        .btn-copy {{ background: #28a745; color: white; border: none; cursor: pointer; }}
         .btn-open {{ background: #ff0000; color: white; }}
         
         /* Hiệu ứng dấu chấm nháy */
@@ -611,7 +611,6 @@ async def get_ui():
             <div id="result-link" class="result-link"></div>
             <div class="action-btns">
                 <a id="open-link" href="#" target="_blank" class="btn-action btn-open">🌍 Mở Link Lấy Mã</a>
-                <button class="btn-action btn-copy" onclick="copyLink()">📋 Copy Link</button>
             </div>
         </div>
     </div>
@@ -729,12 +728,7 @@ async def get_ui():
             btn.innerText = '⚡ Gắn Mã';
         }}
 
-        function copyLink() {{
-            const link = document.getElementById('result-link').innerText;
-            navigator.clipboard.writeText(link).then(() => {{
-                alert('Đã chép mã thành công!');
-            }});
-        }}
+
 
         // Kiểm tra bảo trì tự động mỗi 10 giây
         setInterval(async () => {{
